@@ -25,6 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from pipeline.dicom_processor import dicom_info, load_dicom_frames, preprocess_frames
 from pipeline.cnn_predictor import aggregate_probs, load_cnn_model, predict_frames
 from pipeline.ensemble_predictor import load_ensemble, predict_ensemble
+from pipeline.gradcam import compute_gradcam_all
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -183,6 +184,59 @@ async def predict(
     except Exception as exc:
         tb = traceback.format_exc()
         raise HTTPException(status_code=500, detail=f"Prediction error: {exc}\n{tb}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@app.post("/gradcam")
+async def gradcam(
+    dicom_file: UploadFile = File(...),
+    num_prior_cs: int = Form(...),
+    previa: str = Form(...),
+    patient_id: str = Form(""),
+    agg_method: str = Form("mean"),
+):
+    """
+    Compute GradCAM overlays for all frames (up to 200, sampled uniformly).
+
+    Returns base64-encoded JPEG overlays for each sampled frame so the
+    frontend can render an interactive slider without any extra requests.
+
+    Form fields: same as /predict
+    """
+    cnn_model = _state.get("cnn_model")
+    if cnn_model is None:
+        raise HTTPException(status_code=503, detail="CNN model not loaded.")
+
+    MAX_BYTES = 50 * 1024 * 1024
+    contents = await dicom_file.read()
+    if len(contents) > MAX_BYTES:
+        raise HTTPException(status_code=413, detail="File too large (max 50 MB).")
+
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".dcm", delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+
+        frames, ds = load_dicom_frames(tmp_path)
+        batch = preprocess_frames(frames)
+        num_frames = len(frames)
+
+        overlays = compute_gradcam_all(cnn_model, batch)
+
+        return JSONResponse(content={
+            "num_frames": num_frames,
+            "sampled_frames": len(overlays),
+            "overlays": overlays,
+        })
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"GradCAM error: {exc}\n{tb}")
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)

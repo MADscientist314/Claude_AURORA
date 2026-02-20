@@ -156,6 +156,46 @@
         on this output.
       </p>
     </section>
+
+    <!-- ── GradCAM Panel (hidden until triggered) ── -->
+    <section id="gradcam-section" class="card gradcam-card hidden">
+      <div class="gradcam-header">
+        <h2>GradCAM Visualization</h2>
+        <p class="gradcam-sub">Regions highlighted in <span class="jet-hot">red/yellow</span> had the highest influence on the model's prediction.</p>
+      </div>
+
+      <!-- Loading state -->
+      <div id="gradcam-loading" class="gradcam-loading">
+        <span class="spinner spinner-dark"></span>
+        <span id="gradcam-loading-text">Generating GradCAM overlays…</span>
+      </div>
+
+      <!-- Viewer (hidden until loaded) -->
+      <div id="gradcam-viewer" class="gradcam-viewer hidden">
+        <div class="gradcam-image-wrap">
+          <img id="gradcam-img" class="gradcam-img" alt="GradCAM overlay" />
+        </div>
+
+        <div class="gradcam-controls">
+          <div class="gradcam-frame-label">
+            Frame <strong id="gc-frame-num">—</strong> / <span id="gc-total-frames">—</span>
+            &nbsp;&nbsp;|&nbsp;&nbsp;
+            CNN Prob: <strong id="gc-prob">—</strong>
+          </div>
+          <input
+            type="range"
+            id="gradcam-slider"
+            class="gradcam-slider"
+            min="0"
+            value="0"
+          />
+          <div class="gradcam-slider-labels">
+            <span>Frame 0</span>
+            <span id="gc-slider-end">—</span>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer>
