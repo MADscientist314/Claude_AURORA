@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AURORA — PAS Detection</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <!-- Chart.js from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <h1>AURORA</h1>
+      <p class="subtitle">Placenta Accreta Spectrum — AI-Assisted Detection</p>
+    </div>
+  </header>
+
+  <main>
+    <!-- ── Input Panel ── -->
+    <section class="card input-card">
+      <form id="predict-form" novalidate>
+        <div class="form-grid">
+
+          <!-- Left column: patient info -->
+          <fieldset class="fieldset">
+            <legend>Patient Information</legend>
+
+            <div class="field">
+              <label for="patient_id">Patient ID <span class="optional">(optional)</span></label>
+              <input type="text" id="patient_id" name="patient_id" placeholder="e.g. PAS499" />
+            </div>
+
+            <div class="field">
+              <label for="num_prior_cs">Number of Prior Cesarean Sections</label>
+              <input
+                type="number"
+                id="num_prior_cs"
+                name="num_prior_cs"
+                min="0"
+                max="10"
+                value="0"
+                required
+              />
+            </div>
+
+            <div class="field">
+              <label>Placenta Previa</label>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input type="radio" name="previa" value="no" checked /> No
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="previa" value="yes" /> Yes
+                </label>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="agg_method">Aggregation Method</label>
+              <select id="agg_method" name="agg_method">
+                <option value="mean" selected>Mean (recommended)</option>
+                <option value="max">Max</option>
+                <option value="median">Median</option>
+              </select>
+            </div>
+          </fieldset>
+
+          <!-- Right column: DICOM upload -->
+          <fieldset class="fieldset">
+            <legend>Upload DICOM</legend>
+            <div
+              id="drop-zone"
+              class="drop-zone"
+              role="button"
+              tabindex="0"
+              aria-label="Click or drag a .dcm file here"
+            >
+              <div class="drop-zone-inner">
+                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                <p id="drop-text">Drag &amp; drop a <strong>.dcm</strong> file here<br />or click to browse</p>
+                <p id="file-name" class="file-name hidden"></p>
+              </div>
+              <input type="file" id="dicom_file" name="dicom_file" accept=".dcm" class="file-input" required />
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="submit-row">
+          <button type="submit" id="run-btn" class="btn-primary">
+            <span id="btn-text">Run Analysis</span>
+            <span id="spinner" class="spinner hidden" aria-hidden="true"></span>
+          </button>
+        </div>
+      </form>
+
+      <!-- Error banner -->
+      <div id="error-banner" class="error-banner hidden" role="alert">
+        <strong>Error:</strong> <span id="error-msg"></span>
+      </div>
+    </section>
+
+    <!-- ── Results Panel (hidden until analysis) ── -->
+    <section id="results-section" class="card results-card hidden">
+      <h2>Analysis Results</h2>
+
+      <div class="results-grid">
+        <!-- Risk badge -->
+        <div class="risk-box" id="risk-box">
+          <div class="risk-label" id="risk-label">—</div>
+          <div class="risk-pct" id="risk-pct">—</div>
+          <div class="risk-sub">Ensemble Probability</div>
+        </div>
+
+        <!-- Chart -->
+        <div class="chart-box">
+          <h3>Per-Frame CNN Probabilities</h3>
+          <canvas id="frame-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Detail stats -->
+      <div class="stats-row">
+        <div class="stat">
+          <span class="stat-label">CNN Prob</span>
+          <span class="stat-value" id="stat-cnn-prob">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Ensemble Prob</span>
+          <span class="stat-value" id="stat-ens-prob">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Frames</span>
+          <span class="stat-value" id="stat-frames">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Prior CS</span>
+          <span class="stat-value" id="stat-cs">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Previa</span>
+          <span class="stat-value" id="stat-previa">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Patient ID</span>
+          <span class="stat-value" id="stat-pid">—</span>
+        </div>
+      </div>
+
+      <p class="disclaimer">
+        <strong>Research use only.</strong> This tool is not FDA-cleared and is intended
+        solely for investigational purposes. Clinical decisions must not be based solely
+        on this output.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>AURORA Project &mdash; MFM Research &mdash; For investigational use only</p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
