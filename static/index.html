@@ -166,14 +166,22 @@
 
       <!-- Loading state -->
       <div id="gradcam-loading" class="gradcam-loading">
-        <span class="spinner spinner-dark"></span>
-        <span id="gradcam-loading-text">Generating GradCAM overlays…</span>
+        <div class="gradcam-loading-header">
+          <span class="spinner spinner-dark"></span>
+          <span id="gradcam-loading-text">Generating GradCAM overlays…</span>
+        </div>
+        <div id="gradcam-progress-wrap" class="gradcam-progress-wrap hidden">
+          <div class="gradcam-progress-bar-bg">
+            <div id="gradcam-progress-bar" class="gradcam-progress-bar"></div>
+          </div>
+          <span id="gradcam-progress-label" class="gradcam-progress-label"></span>
+        </div>
       </div>
 
       <!-- Viewer (hidden until loaded) -->
       <div id="gradcam-viewer" class="gradcam-viewer hidden">
         <div class="gradcam-image-wrap">
-          <img id="gradcam-img" class="gradcam-img" alt="GradCAM overlay" />
+          <canvas id="gradcam-canvas" class="gradcam-img" width="320" height="320"></canvas>
         </div>
 
         <div class="gradcam-controls">
@@ -192,6 +200,16 @@
           <div class="gradcam-slider-labels">
             <span>Frame 0</span>
             <span id="gc-slider-end">—</span>
+          </div>
+
+          <!-- Overlay toggle + opacity -->
+          <div class="gradcam-overlay-controls">
+            <button type="button" id="overlay-toggle" class="btn-toggle active">Hide Overlay</button>
+            <div class="opacity-control">
+              <label for="opacity-slider">Opacity</label>
+              <input type="range" id="opacity-slider" class="gradcam-slider" min="0" max="100" value="60" />
+              <span id="opacity-value">60%</span>
+            </div>
           </div>
         </div>
       </div>

@@ -19,13 +19,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from pipeline.dicom_processor import dicom_info, load_dicom_frames, preprocess_frames
 from pipeline.cnn_predictor import aggregate_probs, load_cnn_model, predict_frames
 from pipeline.ensemble_predictor import load_ensemble, predict_ensemble
-from pipeline.gradcam import compute_gradcam_all
+from pipeline.gradcam import compute_gradcam_all, compute_gradcam_generator
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -200,8 +200,10 @@ async def gradcam(
     """
     Compute GradCAM overlays for all frames (up to 200, sampled uniformly).
 
-    Returns base64-encoded JPEG overlays for each sampled frame so the
-    frontend can render an interactive slider without any extra requests.
+    Streams NDJSON so the frontend can show a real-time progress bar.
+    Each line is either a progress update or the final payload:
+        {"progress": 42, "total": 200}
+        {"done": true, "num_frames": 852, "sampled_frames": 200, "overlays": [...]}
 
     Form fields: same as /predict
     """
@@ -214,29 +216,45 @@ async def gradcam(
     if len(contents) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="File too large (max 500 MB).")
 
+    # Load DICOM synchronously before starting the stream
     tmp_path: str | None = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".dcm", delete=False) as tmp:
             tmp.write(contents)
             tmp_path = tmp.name
-
         frames, ds = load_dicom_frames(tmp_path)
         batch = preprocess_frames(frames)
         num_frames = len(frames)
-
-        overlays = compute_gradcam_all(cnn_model, batch)
-
-        return JSONResponse(content={
-            "num_frames": num_frames,
-            "sampled_frames": len(overlays),
-            "overlays": overlays,
-        })
-
-    except HTTPException:
-        raise
     except Exception as exc:
-        tb = traceback.format_exc()
-        raise HTTPException(status_code=500, detail=f"GradCAM error: {exc}\n{tb}")
-    finally:
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"DICOM error: {exc}\n{tb}")
+
+    import json as _json
+
+    def generate():
+        results = []
+        try:
+            for frame_data in compute_gradcam_generator(cnn_model, batch):
+                results.append({
+                    "frame_idx":   frame_data["frame_idx"],
+                    "raw_b64":     frame_data["raw_b64"],
+                    "heatmap_b64": frame_data["heatmap_b64"],
+                })
+                yield _json.dumps({
+                    "progress": frame_data["progress"],
+                    "total":    frame_data["total"],
+                }) + "\n"
+
+            yield _json.dumps({
+                "done":           True,
+                "num_frames":     num_frames,
+                "sampled_frames": len(results),
+                "overlays":       results,
+            }) + "\n"
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")

@@ -100,12 +100,29 @@ def overlay_frame(
     return overlay
 
 
-def frame_to_b64_jpeg(overlay_rgb: np.ndarray, quality: int = _JPEG_QUALITY) -> str:
+def frame_to_b64_jpeg(rgb: np.ndarray, quality: int = _JPEG_QUALITY) -> str:
     """Encode a uint8 RGB array to a base64 JPEG string."""
-    pil = Image.fromarray(overlay_rgb)
+    pil = Image.fromarray(rgb)
     buf = io.BytesIO()
     pil.save(buf, format="JPEG", quality=quality)
     return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def heatmap_to_b64_jpeg(
+    heatmap: np.ndarray, H: int, W: int, quality: int = _JPEG_QUALITY
+) -> str:
+    """
+    Apply JET colormap to heatmap and encode as base64 JPEG (no frame blend).
+
+    heatmap : float32 (h, w) in [0, 1] from compute_heatmap()
+    Returns : base64 JPEG string of the colored heatmap
+    """
+    heatmap_u8 = (heatmap * 255).astype(np.uint8)
+    heatmap_pil = Image.fromarray(heatmap_u8).resize((W, H), Image.BILINEAR)
+    heatmap_resized = np.asarray(heatmap_pil).astype(np.float32) / 255.0
+    jet = cm.get_cmap("jet")
+    colored = (jet(heatmap_resized)[:, :, :3] * 255).astype(np.uint8)
+    return frame_to_b64_jpeg(colored, quality)
 
 
 def compute_gradcam_all(
@@ -114,10 +131,11 @@ def compute_gradcam_all(
     max_frames: int = _MAX_FRAMES,
 ) -> list[dict]:
     """
-    Compute GradCAM overlays for up to max_frames, sampled uniformly.
+    Compute GradCAM heatmaps for up to max_frames, sampled uniformly.
 
     preprocessed_frames : float32 (N, 256, 256, 3) from dicom_processor.preprocess_frames()
-    Returns             : list of {"frame_idx": int, "b64": str}
+    Returns             : list of {"frame_idx": int, "raw_b64": str, "heatmap_b64": str}
+                          so the frontend can composite at variable opacity.
     """
     n = len(preprocessed_frames)
 
@@ -132,10 +150,66 @@ def compute_gradcam_all(
     results = []
 
     for idx in indices:
-        frame = preprocessed_frames[idx : idx + 1]  # (1, 256, 256, 3)
-        heatmap = compute_heatmap(grad_model, frame)
-        overlay = overlay_frame(preprocessed_frames[idx], heatmap)
-        b64 = frame_to_b64_jpeg(overlay)
-        results.append({"frame_idx": int(idx), "b64": b64})
+        frame_arr = preprocessed_frames[idx]          # (256, 256, 3) float32
+        frame_u8  = np.clip(frame_arr, 0, 255).astype(np.uint8)
+        if frame_u8.ndim == 2:
+            frame_u8 = np.stack([frame_u8, frame_u8, frame_u8], axis=-1)
+        H, W = frame_u8.shape[:2]
+
+        raw_b64 = frame_to_b64_jpeg(frame_u8)
+
+        frame_batch = preprocessed_frames[idx : idx + 1]  # (1, 256, 256, 3)
+        heatmap = compute_heatmap(grad_model, frame_batch)
+        heatmap_b64 = heatmap_to_b64_jpeg(heatmap, H, W)
+
+        results.append({
+            "frame_idx": int(idx),
+            "raw_b64":    raw_b64,
+            "heatmap_b64": heatmap_b64,
+        })
 
     return results
+
+
+def compute_gradcam_generator(
+    cnn_model,
+    preprocessed_frames: np.ndarray,
+    max_frames: int = _MAX_FRAMES,
+):
+    """
+    Generator version of compute_gradcam_all — yields one frame at a time so
+    the caller can stream progress updates.
+
+    Each yield is a dict with keys:
+        frame_idx, raw_b64, heatmap_b64, progress (1-based), total
+    """
+    n = len(preprocessed_frames)
+
+    if n <= max_frames:
+        indices = list(range(n))
+    else:
+        indices = [int(round(i * (n - 1) / (max_frames - 1))) for i in range(max_frames)]
+        indices = sorted(set(indices))
+
+    grad_model = build_grad_model(cnn_model)
+    total = len(indices)
+
+    for progress, idx in enumerate(indices, start=1):
+        frame_arr = preprocessed_frames[idx]
+        frame_u8  = np.clip(frame_arr, 0, 255).astype(np.uint8)
+        if frame_u8.ndim == 2:
+            frame_u8 = np.stack([frame_u8, frame_u8, frame_u8], axis=-1)
+        H, W = frame_u8.shape[:2]
+
+        raw_b64     = frame_to_b64_jpeg(frame_u8)
+        frame_batch = preprocessed_frames[idx : idx + 1]
+        heatmap     = compute_heatmap(grad_model, frame_batch)
+        heatmap_b64 = heatmap_to_b64_jpeg(heatmap, H, W)
+
+        yield {
+            "frame_idx":   int(idx),
+            "raw_b64":     raw_b64,
+            "heatmap_b64": heatmap_b64,
+            "progress":    progress,
+            "total":       total,
+        }
