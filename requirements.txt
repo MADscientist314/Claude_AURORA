@@ -1,7 +1,8 @@
 fastapi
 uvicorn[standard]
 python-multipart
-tensorflow
+tensorflow==2.15.0.post1
+keras==3.9.0
 pydicom
 pillow
 numpy

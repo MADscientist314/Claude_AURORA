@@ -3,58 +3,47 @@ EfficientNetB0 CNN inference
 -----------------------------
 Loads best_model_copy.h5 once at startup and runs per-frame inference.
 
-Key detail: the model was trained with
-  tensorflow.keras.applications.efficientnet.preprocess_input
-not a simple /255 normalization.  preprocess_input is applied here, after the
-crop/resize step in dicom_processor.py.
+The model was saved with Keras 3.9.0 (backend: tensorflow).
+Loading requires the standalone `keras>=3.0` package with KERAS_BACKEND=tensorflow.
+
+Key detail: the model includes internal Rescaling/Normalization layers so
+preprocess_input does NOT need to be applied manually — the model handles
+its own preprocessing internally.
 """
 from __future__ import annotations
 
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras.applications.efficientnet import preprocess_input as effnet_preprocess
+import os
 
-try:
-    import keras  # standalone Keras v3 fallback
-    _HAS_STANDALONE_KERAS = True
-except Exception:
-    _HAS_STANDALONE_KERAS = False
+# Must be set before any keras/tensorflow import
+os.environ.setdefault("KERAS_BACKEND", "tensorflow")
+
+import numpy as np
 
 _BATCH_SIZE = 32
 
 
 def load_cnn_model(model_path: str):
     """
-    Robust loader for legacy .h5 EfficientNetB0 weights.
-    Tries tf.keras first, then standalone keras if available.
+    Load an EfficientNetB0 .h5 model saved with Keras 3.x.
+
+    Uses keras.saving.load_model (standalone Keras 3) which is the only
+    loader compatible with models saved under Keras >= 3.0.
     """
-    last_err: Exception | None = None
-    try:
-        return tf.keras.models.load_model(model_path, compile=False)
-    except Exception as e:
-        last_err = e
-
-    if _HAS_STANDALONE_KERAS:
-        try:
-            from keras.saving import load_model as kload
-            return kload(model_path, compile=False, safe_mode=False)
-        except Exception as e2:
-            last_err = e2
-
-    raise last_err  # type: ignore[misc]
+    import keras
+    return keras.saving.load_model(model_path, compile=False)
 
 
 def predict_frames(preprocessed_batch: np.ndarray, model) -> np.ndarray:
     """
-    Run EfficientNet inference on a (N, 256, 256, 3) float32 array.
+    Run inference on a (N, 256, 256, 3) float32 array.
 
-    preprocessed_batch must already be crop/resize'd (from dicom_processor).
-    preprocess_input is applied here before model.predict.
+    The batch should be crop/resize'd (from dicom_processor) but NOT
+    preprocessed with efficientnet.preprocess_input — the model's own
+    internal Rescaling layers handle that.
 
-    Returns 1-D float32 array of per-frame PAS probabilities.
+    Returns a 1-D float32 array of per-frame PAS probabilities.
     """
-    batch = effnet_preprocess(preprocessed_batch.copy())
-    probs = model.predict(batch, batch_size=_BATCH_SIZE, verbose=0).ravel()
+    probs = model.predict(preprocessed_batch, batch_size=_BATCH_SIZE, verbose=0).ravel()
     return probs.astype(np.float32)
 
 
