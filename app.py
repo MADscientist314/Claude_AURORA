@@ -124,11 +124,11 @@ async def predict(
             detail="CNN model not loaded. Copy best_model_copy.h5 to the models/ directory.",
         )
 
-    # Validate upload size (50 MB)
-    MAX_BYTES = 50 * 1024 * 1024
+    # Validate upload size (500 MB)
+    MAX_BYTES = 500 * 1024 * 1024
     contents = await dicom_file.read()
     if len(contents) > MAX_BYTES:
-        raise HTTPException(status_code=413, detail="File too large (max 50 MB).")
+        raise HTTPException(status_code=413, detail="File too large (max 500 MB).")
 
     tmp_path: str | None = None
     try:
