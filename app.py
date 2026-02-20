@@ -234,25 +234,29 @@ async def gradcam(
     import json as _json
 
     def generate():
-        results = []
+        count = 0
         try:
             for frame_data in compute_gradcam_generator(cnn_model, batch):
-                results.append({
-                    "frame_idx":   frame_data["frame_idx"],
-                    "raw_b64":     frame_data["raw_b64"],
-                    "heatmap_b64": frame_data["heatmap_b64"],
-                })
+                count += 1
+                # Stream each overlay immediately — never accumulate into a giant blob
                 yield _json.dumps({
+                    "overlay": {
+                        "frame_idx":   frame_data["frame_idx"],
+                        "raw_b64":     frame_data["raw_b64"],
+                        "heatmap_b64": frame_data["heatmap_b64"],
+                    },
                     "progress": frame_data["progress"],
                     "total":    frame_data["total"],
                 }) + "\n"
 
+            # Lean done signal — overlays were already sent line by line above
             yield _json.dumps({
                 "done":           True,
                 "num_frames":     num_frames,
-                "sampled_frames": len(results),
-                "overlays":       results,
+                "sampled_frames": count,
             }) + "\n"
+        except Exception as exc:
+            yield _json.dumps({"error": str(exc)}) + "\n"
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)

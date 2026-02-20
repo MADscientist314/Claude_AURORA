@@ -140,9 +140,11 @@
       }
 
       // Read the NDJSON stream line-by-line
-      const reader  = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
+      // Each line is either an overlay+progress or the final done signal.
+      const reader    = response.body.getReader();
+      const decoder   = new TextDecoder();
+      let buffer      = "";
+      const overlays  = [];   // collect overlays as they arrive
 
       while (true) {
         const { done, value } = await reader.read();
@@ -155,10 +157,15 @@
         for (const line of lines) {
           if (!line.trim()) continue;
           const msg = JSON.parse(line);
-          if (msg.done) {
-            renderGradcam(msg);
-          } else if (msg.progress !== undefined) {
+          if (msg.error) {
+            gradcamLoadText.textContent = "GradCAM error: " + msg.error;
+            return;
+          } else if (msg.overlay) {
+            overlays.push(msg.overlay);
             updateGradcamProgress(msg.progress, msg.total);
+          } else if (msg.done) {
+            // Attach the collected overlays and render
+            renderGradcam({ ...msg, overlays });
           }
         }
       }
@@ -166,7 +173,7 @@
       // Flush any remaining data in buffer
       if (buffer.trim()) {
         const msg = JSON.parse(buffer);
-        if (msg.done) renderGradcam(msg);
+        if (msg.done) renderGradcam({ ...msg, overlays });
       }
 
     } catch (err) {
