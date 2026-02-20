@@ -213,7 +213,7 @@
       hmImg.onload  = () => { hmDone  = true; checkPair(); };
 
       rawImg.src = "data:image/jpeg;base64," + ov.raw_b64;
-      hmImg.src  = "data:image/jpeg;base64," + ov.heatmap_b64;
+      hmImg.src  = "data:image/png;base64,"  + ov.heatmap_b64;
 
       // Data URIs may already be complete in some browsers before onload fires
       if (rawImg.complete && !rawDone) { rawDone = true; checkPair(); }

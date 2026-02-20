@@ -108,21 +108,33 @@ def frame_to_b64_jpeg(rgb: np.ndarray, quality: int = _JPEG_QUALITY) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def heatmap_to_b64_jpeg(
-    heatmap: np.ndarray, H: int, W: int, quality: int = _JPEG_QUALITY
-) -> str:
+def heatmap_to_b64_png(heatmap: np.ndarray, H: int, W: int) -> str:
     """
-    Apply JET colormap to heatmap and encode as base64 JPEG (no frame blend).
+    Encode the heatmap as an RGBA PNG where alpha = activation intensity.
 
     heatmap : float32 (h, w) in [0, 1] from compute_heatmap()
-    Returns : base64 JPEG string of the colored heatmap
+
+    By tying the alpha channel to activation strength, low-activation pixels
+    are transparent so the raw ultrasound shows through, while high-activation
+    pixels show the JET color at full strength.  The client controls overall
+    opacity via the slider (canvas globalAlpha).
     """
     heatmap_u8 = (heatmap * 255).astype(np.uint8)
-    heatmap_pil = Image.fromarray(heatmap_u8).resize((W, H), Image.BILINEAR)
-    heatmap_resized = np.asarray(heatmap_pil).astype(np.float32) / 255.0
+    # Resize to target frame dimensions
+    heatmap_resized = np.asarray(
+        Image.fromarray(heatmap_u8).resize((W, H), Image.BILINEAR)
+    )  # uint8 (H, W)
+
+    # JET colormap → RGBA float [0,1], then scale to uint8
     jet = cm.get_cmap("jet")
-    colored = (jet(heatmap_resized)[:, :, :3] * 255).astype(np.uint8)
-    return frame_to_b64_jpeg(colored, quality)
+    rgba = (jet(heatmap_resized.astype(np.float32) / 255.0) * 255).astype(np.uint8)
+
+    # Override alpha with heatmap intensity: 0 activation → fully transparent
+    rgba[:, :, 3] = heatmap_resized
+
+    buf = io.BytesIO()
+    Image.fromarray(rgba, mode="RGBA").save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
 def compute_gradcam_all(
@@ -160,7 +172,7 @@ def compute_gradcam_all(
 
         frame_batch = preprocessed_frames[idx : idx + 1]  # (1, 256, 256, 3)
         heatmap = compute_heatmap(grad_model, frame_batch)
-        heatmap_b64 = heatmap_to_b64_jpeg(heatmap, H, W)
+        heatmap_b64 = heatmap_to_b64_png(heatmap, H, W)
 
         results.append({
             "frame_idx": int(idx),
@@ -204,7 +216,7 @@ def compute_gradcam_generator(
         raw_b64     = frame_to_b64_jpeg(frame_u8)
         frame_batch = preprocessed_frames[idx : idx + 1]
         heatmap     = compute_heatmap(grad_model, frame_batch)
-        heatmap_b64 = heatmap_to_b64_jpeg(heatmap, H, W)
+        heatmap_b64 = heatmap_to_b64_png(heatmap, H, W)
 
         yield {
             "frame_idx":   int(idx),
