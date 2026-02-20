@@ -209,10 +209,10 @@ async def gradcam(
     if cnn_model is None:
         raise HTTPException(status_code=503, detail="CNN model not loaded.")
 
-    MAX_BYTES = 50 * 1024 * 1024
+    MAX_BYTES = 500 * 1024 * 1024
     contents = await dicom_file.read()
     if len(contents) > MAX_BYTES:
-        raise HTTPException(status_code=413, detail="File too large (max 50 MB).")
+        raise HTTPException(status_code=413, detail="File too large (max 500 MB).")
 
     tmp_path: str | None = None
     try:
