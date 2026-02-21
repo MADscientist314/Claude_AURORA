@@ -175,6 +175,9 @@ def compute_gradcam_all(
         H, W = frame_u8.shape[:2]
 
         gray = np.array(Image.fromarray(frame_u8).convert("L"))
+        gmin, gmax = int(gray.min()), int(gray.max())
+        if gmax > gmin:
+            gray = ((gray.astype(np.float32) - gmin) / (gmax - gmin) * 255).astype(np.uint8)
         raw_b64 = frame_to_b64_jpeg(np.stack([gray, gray, gray], axis=-1))
 
         frame_batch = preprocessed_frames[idx : idx + 1]  # (1, 256, 256, 3)
@@ -223,6 +226,9 @@ def compute_gradcam_generator(
         # Convert to greyscale for display only — CNN receives the original
         # preprocessed values unchanged; this only affects what the user sees.
         gray = np.array(Image.fromarray(frame_u8).convert("L"))
+        gmin, gmax = int(gray.min()), int(gray.max())
+        if gmax > gmin:
+            gray = ((gray.astype(np.float32) - gmin) / (gmax - gmin) * 255).astype(np.uint8)
         raw_b64 = frame_to_b64_jpeg(np.stack([gray, gray, gray], axis=-1))
         frame_batch = preprocessed_frames[idx : idx + 1]
         heatmap     = compute_heatmap(grad_model, frame_batch)
