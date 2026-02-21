@@ -108,29 +108,35 @@ def frame_to_b64_jpeg(rgb: np.ndarray, quality: int = _JPEG_QUALITY) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
+_HEATMAP_THRESHOLD = 0.15   # activations below this are fully transparent
+
 def heatmap_to_b64_png(heatmap: np.ndarray, H: int, W: int) -> str:
     """
-    Encode the heatmap as an RGBA PNG where alpha = activation intensity.
+    Encode the heatmap as an RGBA PNG using a warm-only colormap.
 
     heatmap : float32 (h, w) in [0, 1] from compute_heatmap()
 
-    By tying the alpha channel to activation strength, low-activation pixels
-    are transparent so the raw ultrasound shows through, while high-activation
-    pixels show the JET color at full strength.  The client controls overall
-    opacity via the slider (canvas globalAlpha).
+    Uses YlOrRd (yellow → orange → red) so no blue/cyan ever appears.
+    Alpha = scaled activation with a threshold: pixels below
+    _HEATMAP_THRESHOLD are fully transparent so the raw ultrasound
+    shows through cleanly with zero background tint.
     """
     heatmap_u8 = (heatmap * 255).astype(np.uint8)
     # Resize to target frame dimensions
-    heatmap_resized = np.asarray(
+    heatmap_f = np.asarray(
         Image.fromarray(heatmap_u8).resize((W, H), Image.BILINEAR)
-    )  # uint8 (H, W)
+    ).astype(np.float32) / 255.0  # float [0, 1]
 
-    # JET colormap → RGBA float [0,1], then scale to uint8
-    jet = cm.get_cmap("jet")
-    rgba = (jet(heatmap_resized.astype(np.float32) / 255.0) * 255).astype(np.uint8)
+    # autumn_r: yellow → orange → red.  R=255 always, G decreases, B=0 always.
+    # Guaranteed zero blue anywhere in the colormap range.
+    cmap = cm.get_cmap("autumn_r")
+    rgba = (cmap(heatmap_f) * 255).astype(np.uint8)
 
-    # Override alpha with heatmap intensity: 0 activation → fully transparent
-    rgba[:, :, 3] = heatmap_resized
+    # Alpha: zero below threshold, ramps up to 255 above it
+    alpha = np.clip(
+        (heatmap_f - _HEATMAP_THRESHOLD) / (1.0 - _HEATMAP_THRESHOLD), 0.0, 1.0
+    )
+    rgba[:, :, 3] = (alpha * 255).astype(np.uint8)
 
     buf = io.BytesIO()
     Image.fromarray(rgba, mode="RGBA").save(buf, format="PNG")
