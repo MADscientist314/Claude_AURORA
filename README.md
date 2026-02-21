@@ -33,9 +33,25 @@ Claude_AURORA/
 
 ## Setup
 
-### Option A — Docker (recommended for sharing with other institutions)
+### Option A — Docker Hub (easiest — no build required)
 
 **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed.
+
+```bash
+# Pull the pre-built image from Docker Hub (~3.5 GB download)
+docker pull jochum00/aurora-pas:latest
+
+# Run the dashboard
+docker run -p 8000:8000 jochum00/aurora-pas:latest
+```
+
+Then open `http://localhost:8000`. No Python, no pip, no setup required.
+
+---
+
+### Option B — Docker (build from source)
+
+Use this if you want to modify the code or models before deploying.
 
 ```bash
 # 1. Copy model weights into the models/ folder (gitignored — not in repo)
@@ -55,13 +71,11 @@ open http://localhost:8000
 docker compose down
 ```
 
-The image (~3.5 GB) contains everything: Python, TensorFlow, and all model weights.
-Collaborating institutions only need Docker installed — no Python setup required.
+The image contains everything: Python, TensorFlow, and all model weights.
 
 **Sharing with another institution:**
-1. Send them the Git repository (or a zip archive of it)
-2. Send the `models/` folder separately (not in git)
-3. They place `models/` in the project root and run the commands above
+- Simplest: point them to `docker pull jochum00/aurora-pas:latest`
+- To share a custom build: push your own image to Docker Hub and share that tag
 
 ---
 
