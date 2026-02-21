@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  aurora:
+    image: aurora-pas:latest
+    build: .
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    environment:
+      - KERAS_BACKEND=tensorflow
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # TensorFlow model loading takes ~15–30s on first startup
+      start_period: 90s

@@ -13,10 +13,14 @@ incorporates clinical risk factors.
 Claude_AURORA/
 ├── app.py                     # FastAPI web application
 ├── requirements.txt
+├── Dockerfile                 # Container build instructions
+├── docker-compose.yml         # One-command startup
+├── .dockerignore
 ├── pipeline/
 │   ├── dicom_processor.py     # DICOM → preprocessed frames
 │   ├── cnn_predictor.py       # EfficientNetB0 inference
-│   └── ensemble_predictor.py  # Ensemble (CNN + prior CS + previa)
+│   ├── ensemble_predictor.py  # Ensemble (CNN + prior CS + previa)
+│   └── gradcam.py             # GradCAM visualization
 ├── static/
 │   ├── index.html             # Single-page dashboard
 │   ├── style.css
@@ -29,26 +33,50 @@ Claude_AURORA/
 
 ## Setup
 
-### 1. Install dependencies
+### Option A — Docker (recommended for sharing with other institutions)
+
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed.
 
 ```bash
+# 1. Copy model weights into the models/ folder (gitignored — not in repo)
+cp /path/to/best_model_copy.h5  models/
+cp /path/to/ensemble.pkl        models/
+
+# 2. Build the image (~5 min first time; cached on subsequent builds)
+docker compose build
+
+# 3. Start the server
+docker compose up -d
+
+# 4. Open the dashboard
+open http://localhost:8000
+
+# Stop
+docker compose down
+```
+
+The image (~3.5 GB) contains everything: Python, TensorFlow, and all model weights.
+Collaborating institutions only need Docker installed — no Python setup required.
+
+**Sharing with another institution:**
+1. Send them the Git repository (or a zip archive of it)
+2. Send the `models/` folder separately (not in git)
+3. They place `models/` in the project root and run the commands above
+
+---
+
+### Option B — Local Python (development)
+
+```bash
+# 1. Install dependencies
 pip install -r requirements.txt
-```
 
-### 2. Copy model files
+# 2. Copy model files
+cp /path/to/best_model_copy.h5  models/
+cp /path/to/ensemble.pkl        models/
 
-```bash
-cp ../AURORA/best_model_copy.h5  models/
-cp ../AURORA/ensemble.pkl        models/
-```
-
-Both files are **gitignored** (large binaries). They must be present before
-starting the server.
-
-### 3. Run the server
-
-```bash
-uvicorn app:app --reload --host 0.0.0.0 --port 8000
+# 3. Run the server
+KERAS_BACKEND=tensorflow uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 Then open `http://localhost:8000` in a browser.

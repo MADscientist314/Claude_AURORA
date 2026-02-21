@@ -1,0 +1,56 @@
+# Git internals
+.git/
+.gitignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Jupyter notebooks and checkpoints
+*.ipynb
+.ipynb_checkpoints/
+
+# Large data / output files
+*.pdf
+*.mp4
+*.zip
+*.xlsx
+*.xls
+*.csv
+*.tsv
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Model binaries — excluded globally, but models/ is re-included below
+*.h5
+!models/*.h5
+*.keras
+!models/*.keras
+*.pkl
+!models/*.pkl
+
+# Scratch / temp directories
+cache_npz/
+exported_frames*/
+gradcam_*/
+tmp*/
+trash*/
+
+# R / RStudio artifacts
+*.RDS
+*.RData
+*.Rhistory
+.Rproj.user/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.code-workspace
