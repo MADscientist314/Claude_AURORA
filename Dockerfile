@@ -15,10 +15,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python dependencies first — separate layer for cache efficiency.
-# Re-runs only when requirements.txt changes, not on every code edit.
+# Install Python dependencies in two passes.
+# TF 2.15 declares keras<2.16 as a dep, which conflicts with standalone Keras 3.x.
+# Solution: install everything except keras first (TF pulls keras 2.15 itself),
+# then install keras 3.x with --no-deps to skip the resolver conflict check.
+# This matches how the local environment was set up.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN grep -v '^keras' requirements.txt > /tmp/reqs_no_keras.txt && \
+    pip install --no-cache-dir -r /tmp/reqs_no_keras.txt && \
+    pip install --no-cache-dir --no-deps keras==3.9.0
 
 # Copy application code
 COPY app.py .
