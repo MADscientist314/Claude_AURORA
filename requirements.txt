@@ -3,6 +3,10 @@ uvicorn[standard]
 python-multipart
 tensorflow==2.15.0.post1
 keras==3.9.0
+# Keras 3.x deps not pulled in by TF (needed when keras is installed --no-deps)
+optree
+namex
+rich
 pydicom
 pillow
 numpy
